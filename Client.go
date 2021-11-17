@@ -1,6 +1,9 @@
 package gof
 
-import "net"
+import (
+    "fmt"
+    "net"
+)
 
 type Client struct {
     address    string
@@ -9,7 +12,10 @@ type Client struct {
 }
 
 func (c *Client) SendPacket(data []byte) {
-    pc := c.PacketConnection()
+    if c.packetConn == nil {
+        return
+    }
+    pc := c.packetConn
     packet := NewPacket()
     packet.WriteBytes(data)
     pc.Send(packet)
@@ -25,4 +31,21 @@ func (c *Client) PacketConnection() *PacketConn {
 func (c *Client) NetConn() net.Conn {
     return c.Conn
 }
+func (c *Client) Close() {
+    if c.Conn == nil {
+        return
+    }
+    defer func() {
+        recover()
+    }()
+    c.packetConn = nil
+    c.Conn.Close()
+    c.Conn = nil
+}
 
+func (c *Client) String() string {
+    if c.Conn == nil {
+        return fmt.Sprintf("Client<%s> closed", c.address)
+    }
+    return fmt.Sprintf("Client<%v> => <%v>", c.Conn.LocalAddr(), c.Conn.RemoteAddr())
+}

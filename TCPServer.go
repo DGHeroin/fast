@@ -6,7 +6,7 @@ import (
     "time"
 )
 
-func serveTCP(delegate Delegate, opt Option) {
+func serveTCP(delegate ServerDelegate, opt Option) {
     var (
         ln  net.Listener
         err error
@@ -23,18 +23,25 @@ func serveTCP(delegate Delegate, opt Option) {
     delegate.OnStartServe(ln.Addr())
     defer ln.Close()
     handleConn := func(conn net.Conn) {
-        delegate.OnNew(conn)
-        defer delegate.OnClose(conn)
-        pc := NewPacketConnection(conn)
-        for {
-            pkt, err := pc.Recv()
-            if err != nil {
-                break
-            }
-            if pkt != nil {
-                delegate.HandlePacket(pkt)
-            }
+        c := &Client{
+            address: opt.Address,
         }
+        c.Conn = conn
+        pc := c.PacketConnection()
+        defer func() {
+            pc.Close()
+            conn.Close()
+            delegate.OnClose(c)
+        }()
+
+        delegate.OnNew(c)
+
+        pc.LoopReadPack(func(packet *Packet, err error) {
+            if err != nil {
+                return
+            }
+            delegate.HandlePacket(c, packet)
+        })
     }
 
     for {

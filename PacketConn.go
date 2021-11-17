@@ -3,6 +3,7 @@ package gof
 import (
     "encoding/binary"
     "net"
+    "sync"
     "time"
 )
 
@@ -11,9 +12,20 @@ type (
         conn       net.Conn
         sendChan   chan *Packet
         sendBuffer []*Packet
+        closeCh    chan struct{}
+        closeOnce sync.Once
     }
 )
 
+func (pc*PacketConn) LoopReadPack(cb func(packet *Packet, err error)) {
+    for {
+        pkt, err := pc.Recv()
+        cb(pkt, err)
+        if err != nil {
+            break
+        }
+    }
+}
 func (pc *PacketConn) Recv() (*Packet, error) {
     var (
         header [4]byte
@@ -44,6 +56,9 @@ func (pc *PacketConn) Send(packet *Packet) {
 }
 
 func (pc *PacketConn) loop() {
+    defer func() {
+        recover()
+    }()
     ticker := time.NewTicker(time.Millisecond * 5)
     defer ticker.Stop()
     for {
@@ -54,6 +69,8 @@ func (pc *PacketConn) loop() {
             copyBuffer := pc.sendBuffer
             pc.sendBuffer = []*Packet{}
             pc.flushSend(copyBuffer...)
+        case <-pc.closeCh:
+            return
         }
     }
 }
@@ -69,11 +86,16 @@ func (pc *PacketConn) flushSend(packets ...*Packet) error {
     }
     return tryFlush(pc.conn)
 }
-
+func (pc *PacketConn) Close() {
+    pc.closeOnce.Do(func() {
+        close(pc.closeCh)
+    })
+}
 func NewPacketConnection(conn net.Conn) *PacketConn {
     pc := &PacketConn{
         conn:     NewConnection(conn, 1024*1024, 1024*1024),
         sendChan: make(chan *Packet),
+        closeCh:  make(chan struct{}),
     }
     Go(pc.loop)
     return pc

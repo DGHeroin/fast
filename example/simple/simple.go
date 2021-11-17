@@ -1,6 +1,7 @@
 package main
 
 import (
+    "flag"
     gof "github.com/DGHeroin/gofaster"
     "log"
     "net"
@@ -9,47 +10,56 @@ import (
 
 type (
     serverHandler struct {
+        gof.ServerHandler
+    }
+    clientHandler struct {
+        gof.ClientHandler
     }
 )
+var (
+    network = flag.String("n", "kcp", "network type")
+)
+
+func (c *clientHandler) OnOpen(client *gof.Client) {
+    log.Println("OnOpen", client)
+    n := 0
+    for n < 5 {
+        client.SendPacket([]byte(time.Now().Format(time.RFC3339)))
+        time.Sleep(time.Second)
+        n++
+    }
+    client.Close()
+}
+
+
+func (c *clientHandler) HandlePacket(client *gof.Client,packet *gof.Packet) {
+    log.Println("Client============>HandlePacket", packet.PayloadAsString())
+}
 
 func main() {
-    gof.GoN(1, startClient)
+    flag.Parse()
     startServer()
 }
 
 func startClient() {
     time.Sleep(time.Second)
-    client, err := gof.NewClient("tcp", gof.Option{Address: "127.0.0.1:5566"})
-    if err != nil {
-        log.Println(err)
-        return
-    }
+    handler := &clientHandler{}
+    client := gof.NewClient(*network, handler, gof.Option{Address: "127.0.0.1:5566"})
     defer client.Close()
-    n := 0
-    for n < 10 {
-        client.SendPacket([]byte(time.Now().Format(time.RFC3339)))
-        time.Sleep(time.Second)
-        n++
-    }
-
+    time.Sleep(time.Second * 10)
 }
 
 func startServer() {
     handler := &serverHandler{}
-    gof.Serve("tcp", handler, gof.Option{Address: ":5566"})
+    gof.Serve(*network, handler, gof.Option{Address: ":5566"})
 }
 
 func (s *serverHandler) OnStartServe(addr net.Addr) {
     log.Println("start service", addr.String())
+    gof.GoN(1, startClient)
 }
 
-func (s *serverHandler) HandlePacket(packet *gof.Packet) {
-    log.Println("收到", packet.PayloadAsString())
-}
-func (s *serverHandler) OnNew(conn net.Conn) {
-    log.Println("新链接", conn.RemoteAddr())
-}
-
-func (s *serverHandler) OnClose(conn net.Conn) {
-    log.Println("关闭链接", conn.RemoteAddr())
+func (s *serverHandler) HandlePacket(client *gof.Client, packet *gof.Packet) {
+    log.Println("Server------------>HandlePacket", packet.PayloadAsString())
+    client.SendPacket([]byte("hello world"))
 }

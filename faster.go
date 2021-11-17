@@ -1,7 +1,30 @@
 package gof
 
-func Serve(network string, delegate Delegate, opt Option) {
-    RunForeverUntilPanic(AutoRestartServerDuration, func() {
+import (
+    "net"
+)
+
+type (
+    ServerDelegate interface {
+        OnStartServe(addr net.Addr)
+        OnNew(client *Client)
+        OnClose(client *Client)
+        HandlePacket(client *Client, packet *Packet)
+    }
+    ClientDelegate interface {
+        OnOpen(client *Client)
+        OnClose(client *Client)
+        OnError(client *Client, err error)
+        HandlePacket(client *Client, packet *Packet)
+    }
+)
+
+const (
+//AutoRestartServerDuration = time.Second * 3
+)
+
+func Serve(network string, delegate ServerDelegate, opt Option) {
+    RunForeverUntilPanic(opt.RetryDuration, func() {
         switch network {
         case "tcp":
             serveTCP(delegate, opt)
@@ -12,12 +35,12 @@ func Serve(network string, delegate Delegate, opt Option) {
         }
     })
 }
-func NewClient(network string, option Option) (*Client, error)  {
+func NewClient(network string, delegate ClientDelegate, option Option) *Client {
     switch network {
     case "tcp":
-        return newTCPClient(option)
+        return newTCPClient(delegate, option)
     case "kcp":
-        return newKCPClient(option)
+        return newKCPClient(delegate, option)
     default:
         panic("unsupported protocol")
     }

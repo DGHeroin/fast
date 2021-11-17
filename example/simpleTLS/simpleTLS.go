@@ -9,6 +9,10 @@ import (
 
 type (
     serverHandler struct {
+        gof.ServerHandler
+    }
+    clientHandler struct {
+        gof.ClientHandler
     }
 )
 
@@ -24,11 +28,9 @@ func startClient() {
         log.Println(err)
         return
     }
-    client, err := gof.NewClient("tcp", gof.Option{Address: "127.0.0.1:5566", TLS: tlsConfig})
-    if err != nil {
-        log.Println(err)
-        return
-    }
+    handler := &clientHandler{}
+    client := gof.NewClient("tcp", handler, gof.Option{Address: "127.0.0.1:5566", TLS: tlsConfig})
+
     defer client.Close()
     n := 0
     for n < 10 {
@@ -53,13 +55,6 @@ func (s *serverHandler) OnStartServe(addr net.Addr) {
     log.Println("start service", addr.String())
 }
 
-func (s *serverHandler) HandlePacket(packet *gof.Packet) {
+func (s *serverHandler) HandlePacket(client *gof.Client, packet *gof.Packet) {
     log.Println("收到", packet.PayloadAsString())
-}
-func (s *serverHandler) OnNew(conn net.Conn) {
-    log.Println("新链接", conn.RemoteAddr())
-}
-
-func (s *serverHandler) OnClose(conn net.Conn) {
-    log.Println("关闭链接", conn.RemoteAddr())
 }

@@ -5,16 +5,34 @@ import (
     "net"
 )
 
-func newKCPClient(opt Option) (*Client, error) {
+func newKCPClient(delegate ClientDelegate, opt Option) *Client {
     var (
         conn net.Conn
         err  error
     )
-
-    conn, err = kcp.Dial(opt.Address)
     c := &Client{
         address: opt.Address,
     }
-    c.Conn = conn
-    return c, err
+    openAndRead := func() {
+        conn, err = kcp.Dial(opt.Address)
+        c.Conn = conn
+        pc := c.PacketConnection()
+
+        defer func() {
+            delegate.OnClose(c)
+            pc.Close()
+        }()
+
+        go delegate.OnOpen(c)
+        pc.LoopReadPack(func(packet *Packet, err error) {
+            if err != nil {
+                delegate.OnError(c, err)
+                return
+            }
+            delegate.HandlePacket(c, packet)
+        })
+    }
+    go RunForeverUntilPanic(opt.RetryDuration, openAndRead)
+
+    return c
 }
