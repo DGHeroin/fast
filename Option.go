@@ -1,4 +1,4 @@
-package gof
+package gf
 
 import (
     "crypto/tls"

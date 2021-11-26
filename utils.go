@@ -1,10 +1,11 @@
-package gof
+package gf
 
 import (
     "crypto/tls"
     "crypto/x509"
     "io"
     "io/ioutil"
+    "log"
     "net"
     "runtime"
     "time"
@@ -91,6 +92,7 @@ func RunForeverUntilPanic(AutoRestartServerDuration time.Duration, fn func()) {
         defer func() {
             if e := recover(); e != nil {
                 isRunning = false
+                log.Println(e)
             }
         }()
         fn()

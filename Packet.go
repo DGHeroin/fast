@@ -1,4 +1,4 @@
-package gof
+package gf
 
 import (
     "encoding/binary"
@@ -22,7 +22,6 @@ var (
     packetPool = &sync.Pool{
         New: func() interface{} {
             p := &Packet{}
-
             return p
         },
     }
@@ -150,5 +149,9 @@ func (p *Packet) data() []byte {
     return p.payload[0 : reserveHeaderSize+p.Len()]
 }
 func (p *Packet) PayloadAsString() string {
-    return string(p.data())
+    return string(p.Payload())
+}
+
+func (p *Packet) Payload() []byte {
+    return p.payload[reserveHeaderSize : reserveHeaderSize+p.Len()]
 }

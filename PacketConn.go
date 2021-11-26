@@ -1,4 +1,4 @@
-package gof
+package gf
 
 import (
     "encoding/binary"
@@ -89,6 +89,7 @@ func (pc *PacketConn) flushSend(packets ...*Packet) error {
 func (pc *PacketConn) Close() {
     pc.closeOnce.Do(func() {
         close(pc.closeCh)
+        pc.conn.Close()
     })
 }
 func NewPacketConnection(conn net.Conn) *PacketConn {

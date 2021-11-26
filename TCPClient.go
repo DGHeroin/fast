@@ -1,4 +1,4 @@
-package gof
+package gf
 
 import (
     "crypto/tls"
@@ -41,6 +41,7 @@ func newTCPClient(delegate ClientDelegate, opt Option) *Client {
         defer func() {
             delegate.OnClose(c)
             pc.Close()
+            c.packetConn = nil
         }()
 
         go delegate.OnOpen(c)
@@ -51,6 +52,7 @@ func newTCPClient(delegate ClientDelegate, opt Option) *Client {
             }
             delegate.HandlePacket(c, packet)
         })
+
     }
     go RunForeverUntilPanic(opt.RetryDuration, openAndRead)
 

@@ -1,4 +1,4 @@
-package gof
+package gf
 
 import (
     "github.com/xtaci/kcp-go"
@@ -15,12 +15,16 @@ func newKCPClient(delegate ClientDelegate, opt Option) *Client {
     }
     openAndRead := func() {
         conn, err = kcp.Dial(opt.Address)
+        if err != nil {
+            return
+        }
         c.Conn = conn
         pc := c.PacketConnection()
 
         defer func() {
             delegate.OnClose(c)
             pc.Close()
+            c.packetConn = nil
         }()
 
         go delegate.OnOpen(c)

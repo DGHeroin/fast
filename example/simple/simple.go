@@ -24,7 +24,9 @@ func (c *clientHandler) OnOpen(client *gof.Client) {
     log.Println("OnOpen", client)
     n := 0
     for n < 5 {
-        client.SendPacket([]byte(time.Now().Format(time.RFC3339)))
+        sendData := []byte(time.Now().Format(time.RFC3339))
+        log.Println("client send", sendData)
+        client.SendPacket(sendData)
         time.Sleep(time.Second)
         n++
     }
@@ -33,11 +35,12 @@ func (c *clientHandler) OnOpen(client *gof.Client) {
 
 
 func (c *clientHandler) HandlePacket(client *gof.Client,packet *gof.Packet) {
-    log.Println("Client============>HandlePacket", packet.PayloadAsString())
+    log.Println("Client============>HandlePacket", packet.Payload())
 }
 
 func main() {
     flag.Parse()
+    log.SetFlags(log.LstdFlags|log.Lshortfile)
     startServer()
 }
 
@@ -60,6 +63,6 @@ func (s *serverHandler) OnStartServe(addr net.Addr) {
 }
 
 func (s *serverHandler) HandlePacket(client *gof.Client, packet *gof.Packet) {
-    log.Println("Server------------>HandlePacket", packet.PayloadAsString())
+    log.Println("Server------------>HandlePacket", packet.Payload())
     client.SendPacket([]byte("hello world"))
 }
