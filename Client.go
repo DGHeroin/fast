@@ -49,3 +49,10 @@ func (c *Client) String() string {
     }
     return fmt.Sprintf("Client<%v> => <%v>", c.Conn.LocalAddr(), c.Conn.RemoteAddr())
 }
+
+func (c *Client) Flush() {
+    if c.packetConn == nil {
+        return
+    }
+    c.packetConn.Flush()
+}

@@ -10,13 +10,6 @@ import (
 
 func main() {
     log.SetFlags(log.LstdFlags | log.Lshortfile)
-    var (
-        r, w int
-    )
-    r = 12345
-    cli := gf.NewRPCClient()
-    cli.Connect("tcp", "localhost:7788")
-
     var last int64
     go func() {
         for {
@@ -27,27 +20,33 @@ func main() {
             log.Println("==qps:", qps)
         }
     }()
+    for i := 0; i < 1; i++ {
+        doTest()
+    }
+    select {}
+}
+func doTest() {
+    var (
+        r, w int
+    )
+    r = 12345
+    cli := gf.NewRPCClient()
+    cli.Connect("tcp", "localhost:7788")
 
+    n := 2
     for {
+        n--
         if !cli.IsConnected() {
             time.Sleep(time.Second)
-            log.Println("等..")
             continue
         }
-        startTime := time.Now()
-        err := cli.Call(context.Background(), "mul", &r, &w)
-        if err != nil {
 
-        }
-        log.Println("==>", time.Since(startTime))
-        break
-        //if err != nil {
-        //    log.Println("搞错了", err)
-        //} else {
-        //    log.Println("结果是", w)
-        //}
-        atomic.AddInt64(&count, 1)
-        //time.Sleep(time.Second)
+        //cli.Call(context.Background(), "mul", &r, &w)
+        //atomic.AddInt64(&count, 1)
+        cli.Go(context.Background(), "mul", &r, &w, func(err error) {
+            atomic.AddInt64(&count, 1)
+        })
     }
 }
+
 var count int64

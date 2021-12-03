@@ -13,8 +13,7 @@ type (
     RPCClient struct {
         ClientHandler
         client   *Client
-        mu       sync.Mutex
-        handlers map[int32]*RPCRequestHandler
+        handlers sync.Map
         state    int32
     }
     RPCRequestHandler struct {
@@ -29,10 +28,14 @@ var (
 )
 
 func NewRPCClient() *RPCClient {
-    c := &RPCClient{
-        handlers: map[int32]*RPCRequestHandler{},
-    }
+    c := &RPCClient{}
     return c
+}
+func (c *RPCClient) Go(ctx context.Context, name string, r interface{}, w interface{}, cb func(err error)) {
+    Go(func() {
+        err := c.Call(ctx, name, r, w)
+        cb(err)
+    })
 }
 func (c *RPCClient) Call(ctx context.Context, name string, r interface{}, w interface{}) (err error) {
     defer func() {
@@ -54,8 +57,8 @@ func (c *RPCClient) Call(ctx context.Context, name string, r interface{}, w inte
             msg.Payload = payload
         }
     }
+
     respChan := make(chan struct{})
-    c.mu.Lock()
 
     var (
         handler  = &RPCRequestHandler{}
@@ -68,16 +71,16 @@ func (c *RPCClient) Call(ctx context.Context, name string, r interface{}, w inte
         })
     }
     defer handler.OnDone()
-    c.handlers[msg.Id] = handler
-    defer delete(c.handlers, msg.Id)
-    c.mu.Unlock()
-
+    c.handlers.Store(msg.Id, handler)
+    defer func() {
+        c.handlers.Delete(msg.Id)
+    }()
     sendData, _ := MSGPack(msg)
 
     c.client.SendPacket(sendData)
 
     select {
-    case <-respChan: // 收到恢复
+    case <-respChan:
         if handler.Err != nil {
             return fmt.Errorf("%s", handler.Err)
         }
@@ -95,33 +98,38 @@ func (c *RPCClient) onMessage(client *Client, msg *message) {
         c.handleResponse(client, msg)
     }
 }
-
+func (c *RPCClient) getHandler(id int32) (*RPCRequestHandler, bool){
+    p, ok := c.handlers.Load(id)
+    if !ok {
+        return nil, false
+    }
+    return p.(*RPCRequestHandler), true
+}
 func (c *RPCClient) handleResponse(client *Client, msg *message) {
-    c.mu.Lock()
-    h, ok := c.handlers[msg.Id]
-    c.mu.Unlock()
+    p, ok := c.handlers.Load(msg.Id)
     if !ok {
         return
     }
+    h := p.(*RPCRequestHandler)
     h.respPayload = msg.Payload
     h.Err = msg.Err
     h.OnDone()
-
 }
 
 func (c *RPCClient) OnOpen(client *Client) {
     atomic.CompareAndSwapInt32(&c.state, 0, 1)
-    log.Println("client open")
 }
 func (c *RPCClient) OnClose(client *Client) {
     atomic.CompareAndSwapInt32(&c.state, 1, 0)
-    c.mu.Lock()
-    for _, v := range c.handlers {
-        v.Err = []byte("connection closed")
-        v.OnDone()
-    }
-    c.handlers = map[int32]*RPCRequestHandler{}
-    c.mu.Unlock()
+    c.handlers.Range(func(key, value interface{}) bool {
+        if id, ok := key.(int32); ok {
+            if h, ok2 := c.getHandler(id); ok2 {
+                h.OnDone()
+            }
+        }
+        return true
+    })
+    c.handlers = sync.Map{}
 }
 func (c *RPCClient) OnError(client *Client, err error) {
     log.Printf("%v error:%v", client, err)

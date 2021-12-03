@@ -13,11 +13,12 @@ type (
         sendChan   chan *Packet
         sendBuffer []*Packet
         closeCh    chan struct{}
-        closeOnce sync.Once
+        closeOnce  sync.Once
+        flushChan  chan struct{}
     }
 )
 
-func (pc*PacketConn) LoopReadPack(cb func(packet *Packet, err error)) {
+func (pc *PacketConn) LoopReadPack(cb func(packet *Packet, err error)) {
     for {
         pkt, err := pc.Recv()
         cb(pkt, err)
@@ -54,18 +55,26 @@ func (pc *PacketConn) Recv() (*Packet, error) {
 func (pc *PacketConn) Send(packet *Packet) {
     pc.sendChan <- packet
 }
-
+func (pc *PacketConn) Flush() {
+    pc.flushChan <- struct{}{}
+}
 func (pc *PacketConn) loop() {
     defer func() {
         recover()
     }()
-    ticker := time.NewTicker(time.Millisecond * 5)
+    ticker := time.NewTicker(time.Millisecond*5)
     defer ticker.Stop()
     for {
         select {
         case packet := <-pc.sendChan:
             pc.sendBuffer = append(pc.sendBuffer, packet)
         case <-ticker.C:
+            if len(pc.sendBuffer) == 0 {continue}
+            copyBuffer := pc.sendBuffer
+            pc.sendBuffer = []*Packet{}
+            pc.flushSend(copyBuffer...)
+        case <-pc.flushChan:
+            if len(pc.sendBuffer) == 0 {continue}
             copyBuffer := pc.sendBuffer
             pc.sendBuffer = []*Packet{}
             pc.flushSend(copyBuffer...)
@@ -89,14 +98,16 @@ func (pc *PacketConn) flushSend(packets ...*Packet) error {
 func (pc *PacketConn) Close() {
     pc.closeOnce.Do(func() {
         close(pc.closeCh)
+        close(pc.flushChan)
         pc.conn.Close()
     })
 }
 func NewPacketConnection(conn net.Conn) *PacketConn {
     pc := &PacketConn{
-        conn:     NewConnection(conn, 1024*1024, 1024*1024),
-        sendChan: make(chan *Packet),
-        closeCh:  make(chan struct{}),
+        conn:      NewConnection(conn, 1024*1024, 1024*1024),
+        sendChan:  make(chan *Packet),
+        flushChan: make(chan struct{}),
+        closeCh:   make(chan struct{}),
     }
     Go(pc.loop)
     return pc

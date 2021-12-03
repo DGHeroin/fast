@@ -84,6 +84,7 @@ func (s *RPCServer) handleRequest(client *Client, msg *message) {
 
     sendData, _ := MSGPack(respMsg)
     client.SendPacket(sendData)
+    client.Flush()
 }
 
 func (s *RPCServer) StartServe(network string, address string) {
@@ -107,11 +108,12 @@ func (s *RPCServer) HandlePacket(client *Client, packet *Packet) {
     payload := packet.Payload()
     msg := allocMessage()
     defer msg.Release()
+
     err := MSGUnpack(payload, msg)
     if err != nil {
         log.Println(err)
         return
     }
-    s.onMessage(client, msg)
 
+    s.onMessage(client, msg)
 }
