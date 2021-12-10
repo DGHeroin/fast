@@ -1,4 +1,4 @@
-package gf
+package fast
 
 import (
     "encoding/binary"

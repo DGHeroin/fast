@@ -1,4 +1,4 @@
-package gf
+package fast
 
 import (
     "crypto/tls"
@@ -10,9 +10,8 @@ func newTCPClient(delegate ClientDelegate, opt Option) *Client {
         conn net.Conn
         err  error
     )
-    c := &Client{
-        address: opt.Address,
-    }
+    c := newClient()
+    c.address = opt.Address
     openAndRead := func() {
         if opt.TLS == nil {
             addr, err := net.ResolveTCPAddr("tcp", opt.Address)
@@ -25,6 +24,7 @@ func newTCPClient(delegate ClientDelegate, opt Option) *Client {
                 delegate.OnError(c, err)
                 return
             }
+
             conn, err = net.DialTCP("tcp", laddr, addr)
             if err != nil {
                 delegate.OnError(c, err)
@@ -36,6 +36,7 @@ func newTCPClient(delegate ClientDelegate, opt Option) *Client {
             return
         }
         c.Conn = conn
+
         pc := c.PacketConnection()
 
         defer func() {
@@ -45,6 +46,7 @@ func newTCPClient(delegate ClientDelegate, opt Option) *Client {
         }()
 
         go delegate.OnOpen(c)
+
         pc.LoopReadPack(func(packet *Packet, err error) {
             if err != nil {
                 delegate.OnError(c, err)
@@ -54,6 +56,7 @@ func newTCPClient(delegate ClientDelegate, opt Option) *Client {
         })
 
     }
+
     go RunForeverUntilPanic(opt.RetryDuration, openAndRead)
 
     return c

@@ -1,14 +1,29 @@
-package gf
+package fast
 
 import (
     "fmt"
     "net"
+    "sync/atomic"
 )
 
-type Client struct {
-    address    string
-    packetConn *PacketConn
-    net.Conn
+type (
+    Client struct {
+        id         int32
+        address    string
+        packetConn *PacketConn
+        net.Conn
+    }
+)
+
+var (
+    rpcClientId = int32(0)
+)
+
+func newClient() *Client {
+    cli := &Client{
+        id: atomic.AddInt32(&rpcClientId, 1),
+    }
+    return cli
 }
 
 func (c *Client) SendPacket(data []byte) {
@@ -48,11 +63,4 @@ func (c *Client) String() string {
         return fmt.Sprintf("Client<%s> closed", c.address)
     }
     return fmt.Sprintf("Client<%v> => <%v>", c.Conn.LocalAddr(), c.Conn.RemoteAddr())
-}
-
-func (c *Client) Flush() {
-    if c.packetConn == nil {
-        return
-    }
-    c.packetConn.Flush()
 }

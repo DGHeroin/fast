@@ -2,7 +2,7 @@ package main
 
 import (
     "flag"
-    gof "github.com/DGHeroin/gofaster"
+    gof "github.com/DGHeroin/fast"
     "log"
     "net"
     "time"

@@ -1,4 +1,4 @@
-package gf
+package fast
 
 import (
     "github.com/xtaci/kcp-go"
@@ -20,9 +20,8 @@ func serveKCP(delegate ServerDelegate, opt Option) {
     delegate.OnStartServe(ln.Addr())
     defer ln.Close()
     handleConn := func(conn net.Conn) {
-        c := &Client{
-            address: opt.Address,
-        }
+        c := newClient()
+        c.address = opt.Address
         c.Conn = conn
         pc := c.PacketConnection()
         defer func() {

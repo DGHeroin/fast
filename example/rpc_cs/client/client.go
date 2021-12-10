@@ -2,7 +2,8 @@ package main
 
 import (
     "context"
-    gf "github.com/DGHeroin/gofaster"
+    fast "github.com/DGHeroin/fast"
+    "go.uber.org/ratelimit"
     "log"
     "sync/atomic"
     "time"
@@ -20,8 +21,8 @@ func main() {
             log.Println("==qps:", qps)
         }
     }()
-    for i := 0; i < 1; i++ {
-        doTest()
+    for i := 0; i < 50; i++ {
+        go doTest()
     }
     select {}
 }
@@ -30,7 +31,14 @@ func doTest() {
         r, w int
     )
     r = 12345
-    cli := gf.NewRPCClient()
+    cli := fast.NewRPCClient()
+
+    cli.OnEvent(func(event fast.RPCEvent, args ...interface{}) {
+        switch event {
+        case fast.EventOpen:
+            cli.AddPlugin(ratelimit.New(1000))
+        }
+    })
     cli.Connect("tcp", "localhost:7788")
 
     n := 2
@@ -41,11 +49,12 @@ func doTest() {
             continue
         }
 
-        //cli.Call(context.Background(), "mul", &r, &w)
-        //atomic.AddInt64(&count, 1)
-        cli.Go(context.Background(), "mul", &r, &w, func(err error) {
-            atomic.AddInt64(&count, 1)
-        })
+        cli.Call(context.Background(), "mul", &r, &w)
+        atomic.AddInt64(&count, 1)
+
+        //cli.Go(context.Background(), "mul", &r, &w, func(err error) {
+        //   atomic.AddInt64(&count, 1)
+        //})
     }
 }
 

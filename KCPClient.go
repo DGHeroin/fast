@@ -1,4 +1,4 @@
-package gf
+package fast
 
 import (
     "github.com/xtaci/kcp-go"
@@ -10,9 +10,8 @@ func newKCPClient(delegate ClientDelegate, opt Option) *Client {
         conn net.Conn
         err  error
     )
-    c := &Client{
-        address: opt.Address,
-    }
+    c := newClient()
+    c.address = opt.Address
     openAndRead := func() {
         conn, err = kcp.Dial(opt.Address)
         if err != nil {

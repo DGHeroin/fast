@@ -1,9 +1,8 @@
-package gf
+package fast
 
 import (
     "context"
     "fmt"
-    "log"
     "sync"
     "sync/atomic"
     "time"
@@ -15,12 +14,24 @@ type (
         client   *Client
         handlers sync.Map
         state    int32
+        onEvent  func(event RPCEvent, args ...interface{})
+        rpcMap   RPCMap
     }
     RPCRequestHandler struct {
         respPayload []byte
         OnDone      func()
         Err         []byte
     }
+    RPCEvent int
+)
+
+const (
+    EventOpen       = RPCEvent(0)
+    EventClose      = RPCEvent(1)
+    EventError      = RPCEvent(2)
+    EventAccept     = RPCEvent(3)
+    EventServe      = RPCEvent(4)
+    EventRawMessage = RPCEvent(5)
 )
 
 var (
@@ -29,6 +40,7 @@ var (
 
 func NewRPCClient() *RPCClient {
     c := &RPCClient{}
+    c.rpcMap.init()
     return c
 }
 func (c *RPCClient) Go(ctx context.Context, name string, r interface{}, w interface{}, cb func(err error)) {
@@ -36,6 +48,9 @@ func (c *RPCClient) Go(ctx context.Context, name string, r interface{}, w interf
         err := c.Call(ctx, name, r, w)
         cb(err)
     })
+}
+func SendRawMessage()  {
+
 }
 func (c *RPCClient) Call(ctx context.Context, name string, r interface{}, w interface{}) (err error) {
     defer func() {
@@ -98,7 +113,7 @@ func (c *RPCClient) onMessage(client *Client, msg *message) {
         c.handleResponse(client, msg)
     }
 }
-func (c *RPCClient) getHandler(id int32) (*RPCRequestHandler, bool){
+func (c *RPCClient) getHandler(id int32) (*RPCRequestHandler, bool) {
     p, ok := c.handlers.Load(id)
     if !ok {
         return nil, false
@@ -118,6 +133,9 @@ func (c *RPCClient) handleResponse(client *Client, msg *message) {
 
 func (c *RPCClient) OnOpen(client *Client) {
     atomic.CompareAndSwapInt32(&c.state, 0, 1)
+    if c.onEvent != nil {
+        c.onEvent(EventOpen, client)
+    }
 }
 func (c *RPCClient) OnClose(client *Client) {
     atomic.CompareAndSwapInt32(&c.state, 1, 0)
@@ -130,16 +148,24 @@ func (c *RPCClient) OnClose(client *Client) {
         return true
     })
     c.handlers = sync.Map{}
+
+    if c.onEvent != nil {
+        c.onEvent(EventClose, client)
+    }
 }
 func (c *RPCClient) OnError(client *Client, err error) {
-    log.Printf("%v error:%v", client, err)
+    if c.onEvent != nil {
+        c.onEvent(EventError, client, err)
+    }
 }
 func (c *RPCClient) HandlePacket(client *Client, packet *Packet) {
     payload := packet.Payload()
     msg := allocMessage()
     err := MSGUnpack(payload, msg)
     if err != nil {
-        log.Println(err)
+        if c.onEvent != nil {
+            c.onEvent(EventRawMessage, client, payload)
+        }
         return
     }
     c.onMessage(client, msg)
@@ -150,6 +176,18 @@ func (c *RPCClient) Connect(network string, address string) {
         RetryDuration: time.Second,
     })
 }
+func (c *RPCClient) OnEvent(fn func(event RPCEvent, args ...interface{})) {
+    c.onEvent = fn
+}
 func (c *RPCClient) IsConnected() bool {
     return atomic.LoadInt32(&c.state) == 1
+}
+func (c *RPCClient) AddPlugin(p interface{}) {
+    pc := c.client.PacketConnection()
+    if pc != nil {
+        pc.AddPlugin(p)
+    }
+}
+func (c *RPCClient) RegisterFunc(name string, fn interface{}) {
+    c.rpcMap.RegisterFunc(name, fn)
 }

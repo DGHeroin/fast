@@ -1,11 +1,10 @@
-package gf
+package fast
 
 import (
     "crypto/tls"
     "crypto/x509"
     "io"
     "io/ioutil"
-    "log"
     "net"
     "runtime"
     "time"
@@ -90,10 +89,10 @@ func RunForeverUntilPanic(AutoRestartServerDuration time.Duration, fn func()) {
     isRunning := true
     invoke := func() {
         defer func() {
-            if e := recover(); e != nil {
-                isRunning = false
-                log.Println(e)
-            }
+            //if e := recover(); e != nil {
+            //    isRunning = false
+            //    log.Println(e)
+            //}
         }()
         fn()
     }

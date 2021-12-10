@@ -1,4 +1,4 @@
-package gf
+package fast
 
 import (
     "net"
@@ -10,12 +10,14 @@ type (
         OnNew(client *Client)
         OnClose(client *Client)
         HandlePacket(client *Client, packet *Packet)
+        AddPlugin(interface{})
     }
     ClientDelegate interface {
         OnOpen(client *Client)
         OnClose(client *Client)
         OnError(client *Client, err error)
         HandlePacket(client *Client, packet *Packet)
+        AddPlugin(interface{})
     }
 )
 
